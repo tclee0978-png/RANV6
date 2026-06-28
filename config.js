@@ -1,5 +1,6 @@
 window.RANLEE_CONFIG = {
   version: 'V6 Ultimate',
+  proxyUrl: 'https://ranwinner-api.tclee0978.workers.dev',
   finmindBase: 'https://api.finmindtrade.com/api/v4/data',
   fugleBase: 'https://api.fugle.tw/marketdata/v1.0/stock',
   openaiBase: 'https://api.openai.com/v1/chat/completions',
