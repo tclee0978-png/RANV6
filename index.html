@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>然然贏家 Pro V6 Ultimate｜AI 全市場選股系統</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-main">然然贏家 Pro</div>
+        <div class="logo-sub">V6 Ultimate · Real Scanner</div>
+      </div>
+      <nav>
+        <a href="#dash" class="nav active">🏠 戰情總覽</a>
+        <a href="#scanner" class="nav">📡 全市場掃描</a>
+        <a href="#results" class="nav">🏆 TOP50</a>
+        <a href="#detail" class="nav">📊 個股分析</a>
+        <a href="#watch" class="nav">⭐ WatchList</a>
+        <a href="#apis" class="nav">🔑 API 設定</a>
+        <a href="#notes" class="nav">⚔️ 操作紀律</a>
+      </nav>
+      <div class="side-foot">GitHub Pages Ready</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="top-pill green" id="marketStatus">系統待命</div>
+        <div class="top-pill" id="scanCount">掃描 0 支</div>
+        <div class="top-pill yellow" id="bestStock">最強 -</div>
+        <div class="clock" id="clock">--:--:--</div>
+      </header>
+
+      <section id="dash" class="section">
+        <div class="hero card">
+          <div>
+            <h1>然然贏家 Pro V6 Ultimate</h1>
+            <p>真正資料源版本：FinMind 歷史資料＋Fugle 即時報價＋OpenAI AI 點評。</p>
+            <p class="muted">重點：已移除舊版寫死的 <code>const STOCKS=[]</code>，掃描來源改成 API 資料。</p>
+          </div>
+          <div class="hero-actions">
+            <button class="btn" id="scanNowBtn">🔥 開始全市場掃描</button>
+            <button class="btn secondary" id="loadInfoBtn">📥 載入股票清單</button>
+          </div>
+        </div>
+
+        <div class="grid4" id="cards"></div>
+
+        <div class="card">
+          <h2>⚡ AI 策略大腦</h2>
+          <div id="aiSummary" class="ai-box">尚未掃描。先到 API 設定填入 FinMind Token；Fugle 與 OpenAI 可選填。</div>
+        </div>
+      </section>
+
+      <section id="scanner" class="section">
+        <div class="section-head">
+          <h2>📡 全市場掃描器</h2>
+          <span class="badge">上市＋上櫃</span>
+        </div>
+
+        <div class="card controls">
+          <div class="form-grid">
+            <label>市場
+              <select id="marketFilter">
+                <option value="all">全部上市櫃</option>
+                <option value="twse">只看上市</option>
+                <option value="tpex">只看上櫃</option>
+              </select>
+            </label>
+            <label>最低分數
+              <input id="minScore" type="number" min="0" max="100" value="70" />
+            </label>
+            <label>最低成交量
+              <input id="minVolume" type="number" min="0" value="500000" />
+            </label>
+            <label>掃描數量上限
+              <input id="scanLimit" type="number" min="20" max="2000" value="300" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>歷史資料起始日
+              <input id="startDate" type="date" />
+            </label>
+            <label>歷史資料結束日
+              <input id="endDate" type="date" />
+            </label>
+            <label>AI 點評數量
+              <input id="aiLimit" type="number" min="0" max="20" value="5" />
+            </label>
+            <label>資料模式
+              <select id="dataMode">
+                <option value="finmind">FinMind 歷史日線</option>
+                <option value="fugle">Fugle 即時優先</option>
+              </select>
+            </label>
+          </div>
+          <div class="progress"><div id="progressFill"></div></div>
+          <pre id="scanLog" class="log">等待指令下達...</pre>
+        </div>
+      </section>
+
+      <section id="results" class="section">
+        <div class="section-head">
+          <h2>🏆 AI 主力分 TOP50</h2>
+          <div class="search-row"><input id="searchBox" placeholder="搜尋代號或名稱..." /></div>
+        </div>
+        <div class="card table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>股票</th><th>市場</th><th>收盤</th><th>漲跌%</th><th>量</th><th>主力分</th><th>型態</th><th>建議</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="resultBody"><tr><td colspan="10" class="empty">尚未掃描</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="detail" class="section">
+        <h2>📊 個股深度分析</h2>
+        <div class="card">
+          <div class="search-inline">
+            <input id="singleInput" placeholder="輸入股票代號，例如 2330" />
+            <button class="btn secondary" id="singleBtn">分析</button>
+          </div>
+          <div id="detailBox" class="detail-box muted">尚未選擇個股。</div>
+        </div>
+      </section>
+
+      <section id="watch" class="section">
+        <h2>⭐ WatchList</h2>
+        <div id="watchList" class="watch-grid"></div>
+      </section>
+
+      <section id="apis" class="section">
+        <h2>🔑 API 設定</h2>
+        <div class="warning">
+          重要：GitHub Pages 是純前端，API Key 會存在你的瀏覽器 LocalStorage。實戰建議之後改 Cloudflare Worker 代理。
+        </div>
+        <div class="api-grid">
+          <div class="card api-card">
+            <h3>📈 FinMind Token</h3>
+            <p>用於股票清單與歷史日線。官方資料集包含 TaiwanStockInfo / TaiwanStockPrice。</p>
+            <input id="finmindToken" type="password" placeholder="貼上 FinMind token" />
+            <button class="btn secondary" data-test="finmind">測試 FinMind</button>
+            <div id="finmindStatus" class="status"></div>
+          </div>
+          <div class="card api-card">
+            <h3>⚡ Fugle API Key</h3>
+            <p>用於盤中即時報價。若瀏覽器 CORS 擋住，需要改 Proxy。</p>
+            <input id="fugleKey" type="password" placeholder="貼上 Fugle API Key" />
+            <button class="btn secondary" data-test="fugle">測試 Fugle</button>
+            <div id="fugleStatus" class="status"></div>
+          </div>
+          <div class="card api-card">
+            <h3>🤖 OpenAI API Key</h3>
+            <p>用於 AI 點評 TOP 股票。純前端使用有外洩風險，只建議個人測試。</p>
+            <input id="openaiKey" type="password" placeholder="貼上 OpenAI API Key" />
+            <button class="btn secondary" data-test="openai">測試 OpenAI</button>
+            <div id="openaiStatus" class="status"></div>
+          </div>
+          <div class="card api-card">
+            <h3>🛡️ Proxy URL（選填）</h3>
+            <p>若 API 被 CORS 擋，填 Cloudflare Worker URL，例如 https://xxx.workers.dev</p>
+            <input id="proxyUrl" placeholder="Proxy URL，可先空白" />
+            <button class="btn secondary" id="saveKeysBtn">儲存全部</button>
+            <div id="saveStatus" class="status"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="notes" class="section">
+        <h2>⚔️ 作戰紀律</h2>
+        <div class="card rules">
+          <p><b>1. 不追高：</b>主力分高但漲幅過熱，一律等回測，不在急拉後接刀。</p>
+          <p><b>2. 先看量，再看型態：</b>沒有量，突破容易是假；爆量長上影，優先視為派貨。</p>
+          <p><b>3. 分數不是買點：</b>分數只代表值得觀察，真正進場仍看價格、停損與隔日承接。</p>
+          <p><b>4. 資金控管：</b>單筆風險固定，不能因為 AI 說好就重壓。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="scanner.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
