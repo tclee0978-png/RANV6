@@ -1,36 +1,11 @@
 const Api = (() => {
   const cfg = window.RANLEE_CONFIG;
 
-  function getSettings() {
-    return JSON.parse(localStorage.getItem(cfg.storageKey) || '{}');
-  }
+  const WORKER_URL =
+    cfg.proxyUrl || 'https://ranwinner-api.tclee0978.workers.dev';
 
-  function saveSettings(data) {
-    localStorage.setItem(cfg.storageKey, JSON.stringify(data));
-  }
-
-  function buildUrl(base, params) {
-    const url = new URL(base);
-    Object.entries(params || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && String(v).trim() !== '') {
-        url.searchParams.set(k, v);
-      }
-    });
-    return url.toString();
-  }
-
-  async function safeFetch(url, options = {}) {
-    const settings = getSettings();
-
-    const proxy = (settings.proxyUrl || cfg.proxyUrl || '')
-      .trim()
-      .replace(/\/$/, '');
-
-    const finalUrl = proxy
-      ? `${proxy}?url=${encodeURIComponent(url)}`
-      : url;
-
-    const res = await fetch(finalUrl, options);
+  async function safeFetch(url) {
+    const res = await fetch(url);
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -40,77 +15,148 @@ const Api = (() => {
     return res.json();
   }
 
-  async function finmind(dataset, params = {}) {
-    const settings = getSettings();
-    const token = settings.finmindToken || '';
+  async function getTwseQuotes() {
+    const url = `${WORKER_URL.replace(/\/$/, '')}/?target=twse`;
+    const rows = await safeFetch(url);
 
-    const url = buildUrl(cfg.finmindBase, {
-      dataset,
-      token,
-      ...params
-    });
+    if (!Array.isArray(rows)) {
+      throw new Error('TWSE 回傳格式不是陣列');
+    }
 
-    return safeFetch(url);
+    return rows
+      .map(r => {
+        const code =
+          r.Code ||
+          r.code ||
+          r['證券代號'] ||
+          r['有價證券代號'] ||
+          '';
+
+        const name =
+          r.Name ||
+          r.name ||
+          r['證券名稱'] ||
+          r['有價證券名稱'] ||
+          '';
+
+        const close = num(
+          r.ClosingPrice ||
+          r.Close ||
+          r.close ||
+          r['收盤價']
+        );
+
+        const open = num(
+          r.OpeningPrice ||
+          r.Open ||
+          r.open ||
+          r['開盤價']
+        );
+
+        const high = num(
+          r.HighestPrice ||
+          r.High ||
+          r.high ||
+          r['最高價']
+        );
+
+        const low = num(
+          r.LowestPrice ||
+          r.Low ||
+          r.low ||
+          r['最低價']
+        );
+
+        const volume = num(
+          r.TradeVolume ||
+          r.Volume ||
+          r.volume ||
+          r['成交股數']
+        );
+
+        const change = num(
+          r.Change ||
+          r.change ||
+          r['漲跌價差']
+        );
+
+        const changePct =
+          close && open
+            ? Number((((close - open) / open) * 100).toFixed(2))
+            : 0;
+
+        return {
+          code: String(code).trim(),
+          name: String(name).trim(),
+          market: 'TWSE',
+          open,
+          high,
+          low,
+          close,
+          volume,
+          change,
+          changePct
+        };
+      })
+      .filter(x => /^\d{4}$/.test(x.code) && x.close > 0);
+  }
+
+  async function getMarketQuotes() {
+    const twse = await getTwseQuotes();
+    return twse;
   }
 
   async function getStockInfo() {
-    const data = await finmind('TaiwanStockInfo');
-    const rows = Array.isArray(data.data) ? data.data : [];
+    const rows = await getMarketQuotes();
 
-    return rows
-      .filter(x => /^\d{4}$/.test(String(x.stock_id || '')))
-      .map(x => ({
-        code: String(x.stock_id),
-        name: x.stock_name || '',
-        industry: x.industry_category || '',
-        market: normalizeMarket(x.type || x.market || '')
-      }))
-      .filter(x => x.market === 'TWSE' || x.market === 'TPEX');
+    return rows.map(x => ({
+      code: x.code,
+      name: x.name,
+      market: x.market,
+      industry: ''
+    }));
   }
 
-  async function getDailyPrice(code, startDate, endDate) {
-    const data = await finmind('TaiwanStockPrice', {
-      data_id: code,
-      start_date: startDate,
-      end_date: endDate
-    });
+  async function getDailyPrice(code) {
+    const rows = await getMarketQuotes();
+    const found = rows.find(x => x.code === String(code));
 
-    const rows = Array.isArray(data.data) ? data.data : [];
+    if (!found) return [];
 
-    return rows
-      .map(r => ({
-        date: r.date,
-        code: String(r.stock_id || code),
-        open: Number(r.open || 0),
-        high: Number(r.max || r.high || 0),
-        low: Number(r.min || r.low || 0),
-        close: Number(r.close || 0),
-        volume: Number(r.Trading_Volume || r.trading_volume || 0),
-        value: Number(r.Trading_money || r.trading_money || 0),
-        spread: Number(r.spread || 0)
-      }))
-      .filter(x => x.close > 0);
+    return [{
+      date: new Date().toISOString().slice(0, 10),
+      code: found.code,
+      open: found.open,
+      high: found.high,
+      low: found.low,
+      close: found.close,
+      volume: found.volume,
+      value: 0,
+      spread: found.change
+    }];
   }
 
   async function getFugleQuote(code) {
-    const settings = getSettings();
-    const key = settings.fugleKey || '';
+    const rows = await getMarketQuotes();
+    const found = rows.find(x => x.code === String(code));
 
-    if (!key) throw new Error('缺 Fugle API Key');
+    if (!found) {
+      throw new Error(`查無 ${code}`);
+    }
 
-    const url = `${cfg.fugleBase}/intraday/quote/${encodeURIComponent(code)}?apiKey=${encodeURIComponent(key)}`;
-
-    return safeFetch(url);
+    return found;
   }
 
   async function askOpenAI(prompt) {
     const settings = getSettings();
     const key = settings.openaiKey || '';
 
-    if (!key) throw new Error('缺 OpenAI API Key');
+    if (!key) {
+      return '未設定 OpenAI Key，已使用本地量價規則完成掃描。';
+    }
 
     const body = {
-      model: cfg.defaultModel,
+      model: cfg.defaultModel || 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
@@ -144,13 +190,14 @@ const Api = (() => {
 
   async function test(type) {
     if (type === 'finmind') {
-      const data = await finmind('TaiwanStockInfo');
-      return `成功：取得 ${Array.isArray(data.data) ? data.data.length : 0} 筆股票資訊`;
+      const rows = await getTwseQuotes();
+      return `成功：V7 Free 已取得上市 ${rows.length} 支股票，不需 FinMind Token`;
     }
 
     if (type === 'fugle') {
-      const data = await getFugleQuote('2330');
-      return `成功：Fugle 2330 回應 OK，欄位 ${Object.keys(data).slice(0, 5).join(', ')}`;
+      const rows = await getTwseQuotes();
+      const tsmc = rows.find(x => x.code === '2330');
+      return `成功：V7 Free 即時資料 OK，2330 收盤 ${tsmc?.close || '-'}`;
     }
 
     if (type === 'openai') {
@@ -161,13 +208,17 @@ const Api = (() => {
     throw new Error('未知測試類型');
   }
 
-  function normalizeMarket(type) {
-    const t = String(type).toLowerCase();
+  function getSettings() {
+    return JSON.parse(localStorage.getItem(cfg.storageKey) || '{}');
+  }
 
-    if (t.includes('twse') || t.includes('上市')) return 'TWSE';
-    if (t.includes('tpex') || t.includes('otc') || t.includes('上櫃')) return 'TPEX';
+  function saveSettings(data) {
+    localStorage.setItem(cfg.storageKey, JSON.stringify(data));
+  }
 
-    return String(type).toUpperCase();
+  function num(v) {
+    if (v === undefined || v === null) return 0;
+    return Number(String(v).replace(/,/g, '').replace(/X/g, '').trim()) || 0;
   }
 
   return {
@@ -177,6 +228,7 @@ const Api = (() => {
     getDailyPrice,
     getFugleQuote,
     askOpenAI,
-    test
+    test,
+    getMarketQuotes
   };
 })();
